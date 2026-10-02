@@ -2,7 +2,7 @@
 Repositorio para progra 3
 
 # Integrantes
-Francisco Salinas
-Rodolfo Vargas
-Julian Arduz
-Gabriel Montaño
+Francisco Salinas\
+Rodolfo Vargas\
+Julian Arduz\
+Gabriel Montaño\
