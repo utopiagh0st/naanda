@@ -1,4 +1,4 @@
-package com.example.instagram
+package com.example.hubdejuegos
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,8 +16,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.instagram.model.*
-import com.example.instagram.ui.theme.HubDeJuegosTheme
+import com.example.hubdejuegos.model.*
+import com.example.hubdejuegos.ui.theme.HubDeJuegosTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

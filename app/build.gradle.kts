@@ -4,15 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.instagram"
-    compileSdk {
-        version = release(37)
-    }
+    namespace = "com.example.hubdejuegos"
+    compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.instagram"
+        applicationId = "com.example.hubdejuegos"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 

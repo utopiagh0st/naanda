@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Instagram"
+rootProject.name = "Hub de Juegos"
 include(":app")
  
