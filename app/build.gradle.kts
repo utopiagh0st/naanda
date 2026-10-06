@@ -5,12 +5,14 @@ plugins {
 
 android {
     namespace = "com.example.hubdejuegos"
-    compileSdk = 35
+    compileSdk {
+        version = release(37)
+    }
 
     defaultConfig {
         applicationId = "com.example.hubdejuegos"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
