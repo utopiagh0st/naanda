@@ -8,6 +8,8 @@ class Juego(
     var descripcion: String,
     var categoria: String,
     var version: String,
+    val creadorNombre: String = "Comunidad",
+    val creadorId: Int = 0,
     val fechaPublicacion: LocalDateTime = LocalDateTime.now(),
     var estado: EstadoJuego = EstadoJuego.EN_REVISION
 ) {
@@ -24,6 +26,6 @@ class Juego(
     }
 
     fun obtenerInfo(): String {
-        return "Juego: $nombre v$version - Categoría: $categoria - Estado: $estado\nDescripción: $descripcion"
+        return "Juego: $nombre v$version - Categoría: $categoria - Creador: $creadorNombre - Estado: $estado\nDescripción: $descripcion"
     }
 }
