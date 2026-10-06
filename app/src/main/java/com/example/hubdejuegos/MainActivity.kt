@@ -7,20 +7,33 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.hubdejuegos.model.*
+import com.example.hubdejuegos.ui.screens.EstadisticasScreen
+import com.example.hubdejuegos.ui.screens.JugarScreen
 import com.example.hubdejuegos.ui.theme.HubDeJuegosTheme
 
 class MainActivity : ComponentActivity() {
@@ -38,7 +51,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
-    var selectedOption by remember { mutableStateOf("ESTADISTICAS") }
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Jugar, 1: Crear, 2: Estadisticas
 
     val usuario = remember {
         Usuario(
@@ -55,8 +68,48 @@ fun MainScreen() {
     var tiempoJuego by remember { mutableLongStateOf(120L) }
     var isPremium by remember { mutableStateOf(false) }
 
-    // Lista y estado para la creación de juegos
-    val listaJuegos = remember { mutableStateListOf<Juego>() }
+    // Lista de juegos creados y catálogo
+    val listaJuegos = remember { mutableStateOf(mutableListOf<Juego>()) }
+    
+    // Juegos iniciales de ejemplo + los creados por el usuario
+    val juegosUiList = remember(listaJuegos.value) {
+        val baseJuegos = listOf(
+            JuegoUiItem(
+                juego = Juego(1, "Super Runner", "Corre y salva el mundo en este juego de plataforma frenético.", "Acción", "1.2.0"),
+                icono = "🏃",
+                autor = "Rodo",
+                calificacion = 4.9f,
+                partidasJugadas = 1250
+            ),
+            JuegoUiItem(
+                juego = Juego(2, "Puzzle Master", "Resuelve complejos rompecabezas lógicos y entrena tu mente.", "Puzzle", "1.0.0"),
+                icono = "🧩",
+                autor = "Juli",
+                calificacion = 4.7f,
+                partidasJugadas = 840
+            ),
+            JuegoUiItem(
+                juego = Juego(3, "Space Battle", "Combates espaciales épicos contra flotas alienígenas.", "Estrategia", "2.1.0"),
+                icono = "🚀",
+                autor = "Comunidad",
+                calificacion = 4.8f,
+                partidasJugadas = 2100
+            )
+        )
+        // Mapear los juegos creados por el usuario a JuegoUiItem
+        val userJuegos = listaJuegos.value.map { j ->
+            JuegoUiItem(
+                juego = j,
+                icono = "🕹️",
+                autor = usuario.nombre,
+                calificacion = 5.0f,
+                partidasJugadas = 1
+            )
+        }
+        userJuegos + baseJuegos
+    }
+
+    // Estados para la creación de juegos
     var nombreJuego by remember { mutableStateOf("") }
     var descripcionJuego by remember { mutableStateOf("") }
     var categoriaJuego by remember { mutableStateOf("Acción") }
@@ -64,9 +117,9 @@ fun MainScreen() {
     var imagenPortada by remember { mutableStateOf("") }
     var mensajeExito by remember { mutableStateOf("") }
 
-    val categoriasDisponibles = listOf("Acción", "Aventura", "Puzzle", "Estrategia", "RPG", "Deportes", "Simulación")
+    val categoriasDisponibles = listOf("Acción", "Aventura", "Puzzle", "Estrategia", "RPG", "Deportes", "Simulación", "Arcade")
 
-    // Launcher para abrir la galería y seleccionar una imagen
+    // Launcher para galería
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -77,80 +130,117 @@ fun MainScreen() {
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = {
-                    Text(
-                        text = "HubJuegos",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            Text("🎮", fontSize = 18.sp, modifier = Modifier.padding(6.dp))
+                        }
+
+                        Column {
+                            Text(
+                                text = "HubJuegos",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp
+                            )
+                            Text(
+                                text = when (selectedTab) {
+                                    0 -> "Catálogo de Juegos"
+                                    1 -> "Creador de Juegos"
+                                    else -> "Perfil y Estadísticas"
+                                },
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.padding(end = 12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("⭐", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$puntuacion pts",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ) {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.SportsEsports, contentDescription = "Jugar") },
+                    label = { Text("Jugar") },
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.AddCircle, contentDescription = "Crear") },
+                    label = { Text("Crear") },
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Estadísticas") },
+                    label = { Text("Estadísticas") },
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 }
+                )
+            }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Botones de acción principal (Jugar, Crear, Estadísticas)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Button(
-                    onClick = { selectedOption = "JUGAR" },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedOption == "JUGAR") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (selectedOption == "JUGAR") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+            when (selectedTab) {
+                0 -> {
+                    JugarScreen(
+                        juegos = juegosUiList,
+                        onJuegoIniciado = { _ ->
+                            puntuacion += 10
+                            tiempoJuego += 15
+                            if (puntuacion >= nivel * 100) nivel++
+                        }
                     )
-                ) {
-                    Text("🎮 Jugar")
                 }
-
-                Button(
-                    onClick = { selectedOption = "CREAR" },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedOption == "CREAR") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (selectedOption == "CREAR") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("➕ Crear")
-                }
-
-                Button(
-                    onClick = { selectedOption = "ESTADISTICAS" },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedOption == "ESTADISTICAS") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (selectedOption == "ESTADISTICAS") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("📊 Estadísticas")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            when (selectedOption) {
-                "JUGAR" -> {
-                    // Pantalla en blanco
-                }
-                "CREAR" -> {
+                1 -> {
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
+                            .padding(16.dp)
                             .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                            shape = RoundedCornerShape(20.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text("➕ Crear Nuevo Juego", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -220,7 +310,9 @@ fun MainScreen() {
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("🖼️ Seleccionar Imagen de la Galería")
+                                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Seleccionar Imagen de la Galería")
                                 }
 
                                 Spacer(modifier = Modifier.height(20.dp))
@@ -229,15 +321,21 @@ fun MainScreen() {
                                     onClick = {
                                         if (nombreJuego.isNotBlank()) {
                                             val nuevoJuego = Juego(
-                                                id = listaJuegos.size + 1,
+                                                id = listaJuegos.value.size + 10,
                                                 nombre = nombreJuego,
                                                 descripcion = descripcionJuego,
                                                 categoria = categoriaJuego,
                                                 version = versionJuego,
                                                 imagenPortada = imagenPortada
                                             )
-                                            listaJuegos.add(nuevoJuego)
-                                            mensajeExito = "¡Juego '${nuevoJuego.nombre}' creado y añadido a la lista!"
+                                            val mutableList = listaJuegos.value.toMutableList()
+                                            mutableList.add(0, nuevoJuego)
+                                            listaJuegos.value = mutableList
+
+                                            mensajeExito = "¡Juego '${nuevoJuego.nombre}' creado con éxito y añadido a Jugar!"
+                                            puntuacion += 50 // Recompensa por crear un juego
+                                            if (puntuacion >= nivel * 100) nivel++
+
                                             // Reset form
                                             nombreJuego = ""
                                             descripcionJuego = ""
@@ -250,7 +348,7 @@ fun MainScreen() {
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("Guardar y Añadir Juego")
+                                    Text("Guardar y Publicar Juego")
                                 }
 
                                 if (mensajeExito.isNotBlank()) {
@@ -264,103 +362,42 @@ fun MainScreen() {
                             }
                         }
 
-                        if (listaJuegos.isNotEmpty()) {
+                        if (listaJuegos.value.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(16.dp))
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                                shape = RoundedCornerShape(20.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("📋 Juegos Creados (${listaJuegos.size})", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    Text("📋 Tus Juegos Creados (${listaJuegos.value.size})", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                    listaJuegos.forEach { juego ->
-                                        Text("• ${juego.nombre} (v${juego.version}) - Cat: ${juego.categoria} [Portada: ${juego.imagenPortada.ifBlank { "Sin imagen" }}]")
+                                    listaJuegos.value.forEach { juego ->
+                                        Text("• ${juego.nombre} (v${juego.version}) - Cat: ${juego.categoria}")
                                     }
                                 }
                             }
                         }
                     }
                 }
-                "ESTADISTICAS" -> {
-                    val jugadorActual = if (isPremium) {
-                        JugadorPremium(id = 101, usuario = usuario, puntuacion = puntuacion, nivel = nivel)
-                    } else {
-                        JugadorNormal(id = 101, usuario = usuario, puntuacion = puntuacion, nivel = nivel, tiempoJuegoTotal = tiempoJuego)
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("👤 Datos del Usuario", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                Text("ID: ${usuario.id}")
-                                Text("Nombre: ${usuario.nombre}")
-                                Text("Email: ${usuario.email}")
-                                Text("Rol: ${usuario.rol}")
-                                Text("Fecha de Registro: ${usuario.fechaRegistro}")
-                            }
+                2 -> {
+                    EstadisticasScreen(
+                        usuario = usuario,
+                        puntuacion = puntuacion,
+                        nivel = nivel,
+                        tiempoJuego = tiempoJuego,
+                        isPremium = isPremium,
+                        onPuntuacionAdd = { pts ->
+                            puntuacion += pts
+                            if (puntuacion >= nivel * 100) nivel++
+                        },
+                        onTiempoAdd = { mins ->
+                            tiempoJuego += mins
+                        },
+                        onTogglePremium = {
+                            isPremium = !isPremium
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("📊 Estadísticas del Jugador", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                Text("Nivel: ${jugadorActual.nivel}")
-                                Text("Puntuación: ${jugadorActual.puntuacion} pts")
-
-                                Spacer(modifier = Modifier.height(4.dp))
-                                if (jugadorActual is JugadorNormal) {
-                                    Text("Tipo: Jugador Normal", fontWeight = FontWeight.Medium)
-                                    Text(jugadorActual.obtenerEstadisticas())
-                                } else if (jugadorActual is JugadorPremium) {
-                                    Text("Tipo: Jugador Premium ⭐", fontWeight = FontWeight.Medium)
-                                    Text("Beneficios: ${jugadorActual.obtenerBeneficios()}")
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Text("Acciones de Prueba:", fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(onClick = {
-                                puntuacion += 100
-                                if (puntuacion >= nivel * 100) nivel++
-                            }) {
-                                Text("+100 Pts")
-                            }
-
-                            OutlinedButton(onClick = {
-                                tiempoJuego += 30
-                            }) {
-                                Text("+30m Tiempo")
-                            }
-
-                            FilterChip(
-                                selected = isPremium,
-                                onClick = { isPremium = !isPremium },
-                                label = { Text(if (isPremium) "Premium" else "Normal") }
-                            )
-                        }
-                    }
+                    )
                 }
             }
         }
