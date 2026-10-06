@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.hubdejuegos.model.*
 import com.example.hubdejuegos.ui.theme.HubDeJuegosTheme
+import kotlinx.coroutines.delay
 import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
@@ -49,13 +51,13 @@ fun MainScreen() {
         )
     }
 
-    // Lista de juegos disponibles (creados por el usuario y por otros creadores)
+    // Lista de juegos disponibles
     val juegosList = remember {
         listOf(
             Juego(
                 id = 1,
                 nombre = "Pixel Runner 2D",
-                descripcion = "Juego de plataformas dinámico con esquivas y saltos de precisión.",
+                descripcion = "Juego de reflejos rápidos. ¡Toca el objetivo móvil antes de que se agote el tiempo!",
                 categoria = "Plataforma",
                 version = "1.2.0",
                 creadorNombre = usuario.nombre,
@@ -65,7 +67,7 @@ fun MainScreen() {
             Juego(
                 id = 2,
                 nombre = "Space Shooter 3D",
-                descripcion = "Defiende la galaxia de invasores alienígenas con naves personalizables.",
+                descripcion = "Desafío de disparo táctico rápido de 10 segundos.",
                 categoria = "Acción",
                 version = "1.0.0",
                 creadorNombre = usuario.nombre,
@@ -75,7 +77,7 @@ fun MainScreen() {
             Juego(
                 id = 3,
                 nombre = "Cyber Quest RPG",
-                descripcion = "RPG en una metrópolis ciberpunk llena de misiones y combates por turnos.",
+                descripcion = "Entrenamiento de velocidad de reacción ciberpunk.",
                 categoria = "RPG",
                 version = "2.1.0",
                 creadorNombre = "GamerPro_99",
@@ -85,7 +87,7 @@ fun MainScreen() {
             Juego(
                 id = 4,
                 nombre = "Mind Master Puzzle",
-                descripcion = "Más de 100 acertijos lógicos para desafiar tu cerebro y memoria.",
+                descripcion = "Prueba de agilidad mental y toques precisos.",
                 categoria = "Puzle",
                 version = "1.0.5",
                 creadorNombre = "DevMaster",
@@ -95,7 +97,7 @@ fun MainScreen() {
             Juego(
                 id = 5,
                 nombre = "Speed Turbo Racing",
-                descripcion = "Carreras de alta velocidad con físicas realistas y multijugador.",
+                descripcion = "Carreras de velocidad de reacción.",
                 categoria = "Carreras",
                 version = "0.9.0",
                 creadorNombre = "SpeedRacer",
@@ -176,7 +178,14 @@ fun MainScreen() {
                 "JUGAR" -> {
                     JugarScreen(
                         juegos = juegosList,
-                        usuarioActual = usuario
+                        usuarioActual = usuario,
+                        onPuntosGanados = { puntosObtenidos ->
+                            puntuacion += puntosObtenidos
+                            if (puntuacion >= nivel * 100) {
+                                nivel++
+                            }
+                            tiempoJuego += 1 // Suma 1 minuto de juego
+                        }
                     )
                 }
                 "CREAR" -> {
@@ -203,11 +212,12 @@ fun MainScreen() {
 @Composable
 fun JugarScreen(
     juegos: List<Juego>,
-    usuarioActual: Usuario
+    usuarioActual: Usuario,
+    onPuntosGanados: (Int) -> Unit
 ) {
     var filtroSeleccionado by remember { mutableStateOf("TODOS") }
     var juegoSeleccionadoDetalle by remember { mutableStateOf<Juego?>(null) }
-    var juegoSeleccionadoParaJugar by remember { mutableStateOf<Juego?>(null) }
+    var juegoEnEjecucion by remember { mutableStateOf<Juego?>(null) }
 
     val juegosFiltrados = remember(juegos, filtroSeleccionado) {
         when (filtroSeleccionado) {
@@ -217,71 +227,83 @@ fun JugarScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Catálogo de Juegos Disponibles",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
+    // Si hay un juego en ejecución, mostramos el minijuego jugable
+    if (juegoEnEjecucion != null) {
+        MiniJuegoPlayScreen(
+            juego = juegoEnEjecucion!!,
+            onTerminarJuego = { puntos ->
+                onPuntosGanados(puntos)
+                juegoEnEjecucion = null
+            },
+            onVolver = { juegoEnEjecucion = null }
         )
-        Text(
-            text = "Explora las características de los juegos creados por ti y por la comunidad.",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    } else {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Text(
+                text = "Catálogo de Juegos Disponibles",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Selecciona un juego para probar el minijuego interactivo.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        // Filtros rápidos
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            item {
-                FilterChip(
-                    selected = filtroSeleccionado == "TODOS",
-                    onClick = { filtroSeleccionado = "TODOS" },
-                    label = { Text("Todos (${juegos.size})") }
-                )
-            }
-            item {
-                FilterChip(
-                    selected = filtroSeleccionado == "MIS_JUEGOS",
-                    onClick = { filtroSeleccionado = "MIS_JUEGOS" },
-                    label = { Text("Mis Creados (${juegos.count { it.creadorId == usuarioActual.id }})") }
-                )
-            }
-            item {
-                FilterChip(
-                    selected = filtroSeleccionado == "COMUNIDAD",
-                    onClick = { filtroSeleccionado = "COMUNIDAD" },
-                    label = { Text("Comunidad (${juegos.count { it.creadorId != usuarioActual.id }})") }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (juegosFiltrados.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
+            // Filtros rápidos
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("No hay juegos en esta categoría.")
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(juegosFiltrados, key = { it.id }) { juego ->
-                    JuegoCard(
-                        juego = juego,
-                        esCreadoPorMi = juego.creadorId == usuarioActual.id,
-                        onVerDetalles = { juegoSeleccionadoDetalle = juego },
-                        onJugarClick = { juegoSeleccionadoParaJugar = juego }
+                item {
+                    FilterChip(
+                        selected = filtroSeleccionado == "TODOS",
+                        onClick = { filtroSeleccionado = "TODOS" },
+                        label = { Text("Todos (${juegos.size})") }
                     )
+                }
+                item {
+                    FilterChip(
+                        selected = filtroSeleccionado == "MIS_JUEGOS",
+                        onClick = { filtroSeleccionado = "MIS_JUEGOS" },
+                        label = { Text("Mis Creados (${juegos.count { it.creadorId == usuarioActual.id }})") }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = filtroSeleccionado == "COMUNIDAD",
+                        onClick = { filtroSeleccionado = "COMUNIDAD" },
+                        label = { Text("Comunidad (${juegos.count { it.creadorId != usuarioActual.id }})") }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (juegosFiltrados.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No hay juegos en esta categoría.")
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    items(juegosFiltrados, key = { it.id }) { juego ->
+                        JuegoCard(
+                            juego = juego,
+                            esCreadoPorMi = juego.creadorId == usuarioActual.id,
+                            onVerDetalles = { juegoSeleccionadoDetalle = juego },
+                            onJugarClick = { juegoEnEjecucion = juego }
+                        )
+                    }
                 }
             }
         }
@@ -317,11 +339,11 @@ fun JugarScreen(
             },
             confirmButton = {
                 Button(onClick = {
-                    val juegoTemporal = juego
+                    val juegoAIniciar = juego
                     juegoSeleccionadoDetalle = null
-                    juegoSeleccionadoParaJugar = juegoTemporal
+                    juegoEnEjecucion = juegoAIniciar
                 }) {
-                    Text("Intentar Jugar")
+                    Text("🎮 ¡Jugar Ahora!")
                 }
             },
             dismissButton = {
@@ -331,29 +353,122 @@ fun JugarScreen(
             }
         )
     }
+}
 
-    // Modal informativo de intento de juego
-    juegoSeleccionadoParaJugar?.let { juego ->
-        AlertDialog(
-            onDismissRequest = { juegoSeleccionadoParaJugar = null },
-            title = { Text("🕹️ ${juego.nombre}") },
-            text = {
+@Composable
+fun MiniJuegoPlayScreen(
+    juego: Juego,
+    onTerminarJuego: (Int) -> Unit,
+    onVolver: () -> Unit
+) {
+    var puntos by remember { mutableIntStateOf(0) }
+    var tiempoRestante by remember { mutableIntStateOf(10) }
+    var enJuego by remember { mutableStateOf(true) }
+    var targetX by remember { mutableFloatStateOf(0f) }
+    var targetY by remember { mutableFloatStateOf(0f) }
+
+    // Bucle temporizador de 10 segundos
+    LaunchedEffect(enJuego) {
+        if (enJuego) {
+            while (tiempoRestante > 0) {
+                delay(1000L)
+                tiempoRestante--
+            }
+            enJuego = false
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Encabezado del Juego
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column {
-                    Text("Estás explorando las características de este juego.")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Aún no es ejecutable ya que el motor de renderizado de juegos se implementará más adelante.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("🎮 ${juego.nombre}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Caza el objetivo antes de que se agote el tiempo", fontSize = 12.sp)
                 }
-            },
-            confirmButton = {
-                Button(onClick = { juegoSeleccionadoParaJugar = null }) {
-                    Text("Entendido")
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("⏱️ $tiempoRestante s", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("⭐ $puntos pts", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-        )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Zona de Juego Interactiva
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = BiasAlignment(targetX, targetY)
+            ) {
+                if (enJuego) {
+                    Button(
+                        onClick = {
+                            puntos += 10
+                            // Mueve el objetivo a una posición aleatoria dentro del marco
+                            targetX = ((-80..80).random() / 100f)
+                            targetY = ((-80..80).random() / 100f)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                    ) {
+                        Text("🎯 ¡TÓCAME! 🎯", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxSize().padding(16.dp)
+                    ) {
+                        Text("🏆 ¡Tiempo Agotado!", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Obtuviste $puntos puntos en 10 segundos.", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = {
+                                puntos = 0
+                                tiempoRestante = 10
+                                enJuego = true
+                                targetX = 0f
+                                targetY = 0f
+                            }) {
+                                Text("🔄 Reintentar")
+                            }
+
+                            Button(onClick = {
+                                onTerminarJuego(puntos)
+                            }) {
+                                Text("💾 Guardar y Volver")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        TextButton(onClick = onVolver) {
+            Text("◀️ Salir al Catálogo")
+        }
     }
 }
 
