@@ -1,0 +1,17 @@
+*.iml
+.gradle
+/build
+/app/build
+!gradle/wrapper/gradle-wrapper.jar
+local.properties
+.navigation/
+.idea/caches
+.idea/libraries
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navCompiler.xml
+.idea/assetWizardSettings.xml
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx/

@@ -4,19 +4,27 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.hubdejuegos.model.*
+import com.example.hubdejuegos.ui.screens.EstadisticasScreen
+import com.example.hubdejuegos.ui.screens.JugarScreen
 import com.example.hubdejuegos.ui.theme.HubDeJuegosTheme
 
 class MainActivity : ComponentActivity() {
@@ -34,7 +42,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
-    var selectedOption by remember { mutableStateOf("ESTADISTICAS") }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     val usuario = remember {
         Usuario(
@@ -51,156 +59,184 @@ fun MainScreen() {
     var tiempoJuego by remember { mutableLongStateOf(120L) }
     var isPremium by remember { mutableStateOf(false) }
 
+    // Lista de juegos (inicia vacía)
+    val juegosList = remember {
+        mutableStateListOf<JuegoUiItem>()
+    }
+
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = {
-                    Text(
-                        text = "HubJuegos",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            Text("🎮", fontSize = 20.sp, modifier = Modifier.padding(6.dp))
+                        }
+
+                        Column {
+                            Text(
+                                text = "HubJuegos",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = when (selectedTab) {
+                                    0 -> "Catálogo de Juegos"
+                                    1 -> "Creador de Juegos"
+                                    else -> "Perfil y Estadísticas"
+                                },
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    // Badge de Puntuación
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("⭐", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$puntuacion pts",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+
+                    // Avatar del Usuario
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.secondary
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = usuario.nombre.take(1),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Default.SportsEsports, contentDescription = "Jugar") },
+                    label = { Text("Jugar", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Icon(Icons.Default.AddCircle, contentDescription = "Crear") },
+                    label = { Text("Crear", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Estadísticas") },
+                    label = { Text("Estadísticas", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) }
+                )
+            }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Botones de acción principal (Jugar, Crear, Estadísticas)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Button(
-                    onClick = { selectedOption = "JUGAR" },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedOption == "JUGAR") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (selectedOption == "JUGAR") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("🎮 Jugar")
-                }
-
-                Button(
-                    onClick = { selectedOption = "CREAR" },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedOption == "CREAR") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (selectedOption == "CREAR") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("➕ Crear")
-                }
-
-                Button(
-                    onClick = { selectedOption = "ESTADISTICAS" },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedOption == "ESTADISTICAS") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (selectedOption == "ESTADISTICAS") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("📊 Estadísticas")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            when (selectedOption) {
-                "JUGAR" -> {
-                    // Pantalla en blanco
-                }
-                "CREAR" -> {
-                    // Pantalla en blanco
-                }
-                "ESTADISTICAS" -> {
-                    val jugadorActual = if (isPremium) {
-                        JugadorPremium(id = 101, usuario = usuario, puntuacion = puntuacion, nivel = nivel)
-                    } else {
-                        JugadorNormal(id = 101, usuario = usuario, puntuacion = puntuacion, nivel = nivel, tiempoJuegoTotal = tiempoJuego)
+            when (selectedTab) {
+                0 -> JugarScreen(
+                    juegos = juegosList,
+                    onJuegoIniciado = {
+                        puntuacion += 10
+                        if (puntuacion >= nivel * 100) nivel++
                     }
+                )
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                1 -> {
+                    // Pantalla reservada para el desarrollo de la función "Crear" por el compañero
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("👤 Datos del Usuario", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                Text("ID: ${usuario.id}")
-                                Text("Nombre: ${usuario.nombre}")
-                                Text("Email: ${usuario.email}")
-                                Text("Rol: ${usuario.rol}")
-                                Text("Fecha de Registro: ${usuario.fechaRegistro}")
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("📊 Estadísticas del Jugador", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                Text("Nivel: ${jugadorActual.nivel}")
-                                Text("Puntuación: ${jugadorActual.puntuacion} pts")
-
-                                Spacer(modifier = Modifier.height(4.dp))
-                                if (jugadorActual is JugadorNormal) {
-                                    Text("Tipo: Jugador Normal", fontWeight = FontWeight.Medium)
-                                    Text(jugadorActual.obtenerEstadisticas())
-                                } else if (jugadorActual is JugadorPremium) {
-                                    Text("Tipo: Jugador Premium ⭐", fontWeight = FontWeight.Medium)
-                                    Text("Beneficios: ${jugadorActual.obtenerBeneficios()}")
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Text("Acciones de Prueba:", fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(onClick = {
-                                puntuacion += 100
-                                if (puntuacion >= nivel * 100) nivel++
-                            }) {
-                                Text("+100 Pts")
-                            }
-
-                            OutlinedButton(onClick = {
-                                tiempoJuego += 30
-                            }) {
-                                Text("+30m Tiempo")
-                            }
-
-                            FilterChip(
-                                selected = isPremium,
-                                onClick = { isPremium = !isPremium },
-                                label = { Text(if (isPremium) "Premium" else "Normal") }
+                            Text("🛠️", fontSize = 52.sp)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Sección Crear",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Espacio reservado para el desarrollo de la pantalla de crear juegos.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
                 }
+
+                2 -> EstadisticasScreen(
+                    usuario = usuario,
+                    puntuacion = puntuacion,
+                    nivel = nivel,
+                    tiempoJuego = tiempoJuego,
+                    isPremium = isPremium,
+                    onPuntuacionAdd = { delta ->
+                        puntuacion += delta
+                        if (puntuacion >= nivel * 100) nivel++
+                    },
+                    onTiempoAdd = { deltaMins ->
+                        tiempoJuego += deltaMins
+                    },
+                    onTogglePremium = {
+                        isPremium = !isPremium
+                    }
+                )
             }
         }
     }
