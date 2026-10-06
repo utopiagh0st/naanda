@@ -8,8 +8,8 @@ class Juego(
     var descripcion: String,
     var categoria: String,
     var version: String,
-    val fechaPublicacion: LocalDateTime = LocalDateTime.now(),
-    var estado: EstadoJuego = EstadoJuego.EN_REVISION
+    var imagenPortada: String = "",
+    val fechaPublicacion: LocalDateTime = LocalDateTime.now()
 ) {
     fun iniciar() {
         // Lógica para iniciar juego
@@ -24,6 +24,6 @@ class Juego(
     }
 
     fun obtenerInfo(): String {
-        return "Juego: $nombre v$version - Categoría: $categoria - Estado: $estado\nDescripción: $descripcion"
+        return "Juego: $nombre v$version - Categoría: $categoria - Portada: $imagenPortada\nDescripción: $descripcion"
     }
 }

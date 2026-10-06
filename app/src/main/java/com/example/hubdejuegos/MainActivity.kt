@@ -1,12 +1,16 @@
 package com.example.hubdejuegos
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,6 +54,26 @@ fun MainScreen() {
     var nivel by remember { mutableIntStateOf(5) }
     var tiempoJuego by remember { mutableLongStateOf(120L) }
     var isPremium by remember { mutableStateOf(false) }
+
+    // Lista y estado para la creación de juegos
+    val listaJuegos = remember { mutableStateListOf<Juego>() }
+    var nombreJuego by remember { mutableStateOf("") }
+    var descripcionJuego by remember { mutableStateOf("") }
+    var categoriaJuego by remember { mutableStateOf("Acción") }
+    var versionJuego by remember { mutableStateOf("1.0.0") }
+    var imagenPortada by remember { mutableStateOf("") }
+    var mensajeExito by remember { mutableStateOf("") }
+
+    val categoriasDisponibles = listOf("Acción", "Aventura", "Puzzle", "Estrategia", "RPG", "Deportes", "Simulación")
+
+    // Launcher para abrir la galería y seleccionar una imagen
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            imagenPortada = uri.toString()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -118,7 +142,144 @@ fun MainScreen() {
                     // Pantalla en blanco
                 }
                 "CREAR" -> {
-                    // Pantalla en blanco
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("➕ Crear Nuevo Juego", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                                OutlinedTextField(
+                                    value = nombreJuego,
+                                    onValueChange = { nombreJuego = it },
+                                    label = { Text("Nombre del juego") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedTextField(
+                                    value = descripcionJuego,
+                                    onValueChange = { descripcionJuego = it },
+                                    label = { Text("Descripción") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Text("Categoría:", fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    categoriasDisponibles.forEach { cat ->
+                                        FilterChip(
+                                            selected = categoriaJuego == cat,
+                                            onClick = { categoriaJuego = cat },
+                                            label = { Text(cat) }
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedTextField(
+                                    value = versionJuego,
+                                    onValueChange = { versionJuego = it },
+                                    label = { Text("Versión (ej. 1.0.0)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedTextField(
+                                    value = imagenPortada,
+                                    onValueChange = { imagenPortada = it },
+                                    label = { Text("Imagen de portada (URI o ruta)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedButton(
+                                    onClick = {
+                                        galleryLauncher.launch("image/*")
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("🖼️ Seleccionar Imagen de la Galería")
+                                }
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                Button(
+                                    onClick = {
+                                        if (nombreJuego.isNotBlank()) {
+                                            val nuevoJuego = Juego(
+                                                id = listaJuegos.size + 1,
+                                                nombre = nombreJuego,
+                                                descripcion = descripcionJuego,
+                                                categoria = categoriaJuego,
+                                                version = versionJuego,
+                                                imagenPortada = imagenPortada
+                                            )
+                                            listaJuegos.add(nuevoJuego)
+                                            mensajeExito = "¡Juego '${nuevoJuego.nombre}' creado y añadido a la lista!"
+                                            // Reset form
+                                            nombreJuego = ""
+                                            descripcionJuego = ""
+                                            categoriaJuego = "Acción"
+                                            versionJuego = "1.0.0"
+                                            imagenPortada = ""
+                                        } else {
+                                            mensajeExito = "Por favor, ingresa al menos el nombre del juego."
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Guardar y Añadir Juego")
+                                }
+
+                                if (mensajeExito.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = mensajeExito,
+                                        color = if (mensajeExito.startsWith("¡")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+
+                        if (listaJuegos.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("📋 Juegos Creados (${listaJuegos.size})", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                    listaJuegos.forEach { juego ->
+                                        Text("• ${juego.nombre} (v${juego.version}) - Cat: ${juego.categoria} [Portada: ${juego.imagenPortada.ifBlank { "Sin imagen" }}]")
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 "ESTADISTICAS" -> {
                     val jugadorActual = if (isPremium) {
