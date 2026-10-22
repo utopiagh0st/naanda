@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.*
@@ -26,13 +28,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.hubdejuegos.model.*
+import com.example.hubdejuegos.data.JuegoDao
+import com.example.hubdejuegos.data.JuegoEntity
 import com.example.hubdejuegos.ui.screens.EstadisticasScreen
+import com.example.hubdejuegos.ui.screens.FavoritosScreen
 import com.example.hubdejuegos.ui.screens.JugarScreen
 import com.example.hubdejuegos.ui.theme.HubDeJuegosTheme
 
@@ -51,7 +57,13 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Jugar, 1: Crear, 2: Estadisticas
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Jugar, 1: Favoritos, 2: Crear, 3: Estadisticas
+
+    val context = LocalContext.current
+    val juegoDao = remember { JuegoDao(context) }
+    var favoritosDb by remember { mutableStateOf(juegoDao.obtenerFavoritos()) }
+
+    val favoritosIds = remember(favoritosDb) { favoritosDb.map { it.juegoId }.toSet() }
 
     val usuario = remember {
         Usuario(
@@ -68,7 +80,7 @@ fun MainScreen() {
     var tiempoJuego by remember { mutableLongStateOf(120L) }
     var isPremium by remember { mutableStateOf(false) }
 
-    // Lista de juegos creados y catálogo
+    // Lista de juegos creados por el usuario
     val listaJuegos = remember { mutableStateOf(mutableListOf<Juego>()) }
     
     // Juegos iniciales de ejemplo + los creados por el usuario
@@ -107,6 +119,18 @@ fun MainScreen() {
             )
         }
         userJuegos + baseJuegos
+    }
+
+    val favoritosUiItems = remember(favoritosDb, juegosUiList) {
+        favoritosDb.map { fav ->
+            juegosUiList.find { it.juego.id == fav.juegoId } ?: JuegoUiItem(
+                juego = fav.toJuego(),
+                icono = "⭐",
+                autor = "Usuario",
+                calificacion = 5.0f,
+                partidasJugadas = 1
+            )
+        }
     }
 
     // Estados para la creación de juegos
@@ -152,7 +176,8 @@ fun MainScreen() {
                             Text(
                                 text = when (selectedTab) {
                                     0 -> "Catálogo de Juegos"
-                                    1 -> "Creador de Juegos"
+                                    1 -> "Mis Favoritos"
+                                    2 -> "Creador de Juegos"
                                     else -> "Perfil y Estadísticas"
                                 },
                                 fontSize = 11.sp,
@@ -199,16 +224,22 @@ fun MainScreen() {
                     onClick = { selectedTab = 0 }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.AddCircle, contentDescription = "Crear") },
-                    label = { Text("Crear") },
+                    icon = { Icon(Icons.Default.Favorite, contentDescription = "Favoritos") },
+                    label = { Text("Favoritos") },
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Estadísticas") },
-                    label = { Text("Estadísticas") },
+                    icon = { Icon(Icons.Default.AddCircle, contentDescription = "Crear") },
+                    label = { Text("Crear") },
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Estadísticas") },
+                    label = { Text("Estadísticas") },
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 }
                 )
             }
         }
@@ -222,14 +253,38 @@ fun MainScreen() {
                 0 -> {
                     JugarScreen(
                         juegos = juegosUiList,
+                        favoritosIds = favoritosIds,
                         onJuegoIniciado = { _ ->
                             puntuacion += 10
                             tiempoJuego += 15
                             if (puntuacion >= nivel * 100) nivel++
+                        },
+                        onToggleFavorito = { item ->
+                            val isFav = favoritosIds.contains(item.juego.id)
+                            if (isFav) {
+                                juegoDao.eliminarFavoritoPorJuegoId(item.juego.id)
+                            } else {
+                                juegoDao.insertarFavorito(JuegoEntity.fromJuego(item.juego))
+                            }
+                            favoritosDb = juegoDao.obtenerFavoritos()
                         }
                     )
                 }
                 1 -> {
+                    FavoritosScreen(
+                        favoritos = favoritosUiItems,
+                        onJuegoIniciado = { _ ->
+                            puntuacion += 10
+                            tiempoJuego += 15
+                            if (puntuacion >= nivel * 100) nivel++
+                        },
+                        onToggleFavorito = { item ->
+                            juegoDao.eliminarFavoritoPorJuegoId(item.juego.id)
+                            favoritosDb = juegoDao.obtenerFavoritos()
+                        }
+                    )
+                }
+                2 -> {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -321,7 +376,7 @@ fun MainScreen() {
                                     onClick = {
                                         if (nombreJuego.isNotBlank()) {
                                             val nuevoJuego = Juego(
-                                                id = listaJuegos.value.size + 10,
+                                                id = listaJuegos.value.size + 100,
                                                 nombre = nombreJuego,
                                                 descripcion = descripcionJuego,
                                                 categoria = categoriaJuego,
@@ -332,7 +387,7 @@ fun MainScreen() {
                                             mutableList.add(0, nuevoJuego)
                                             listaJuegos.value = mutableList
 
-                                            mensajeExito = "¡Juego '${nuevoJuego.nombre}' creado con éxito y añadido a Jugar!"
+                                            mensajeExito = "¡Juego '${nuevoJuego.nombre}' publicado con éxito!"
                                             puntuacion += 50 // Recompensa por crear un juego
                                             if (puntuacion >= nivel * 100) nivel++
 
@@ -348,7 +403,7 @@ fun MainScreen() {
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("Guardar y Publicar Juego")
+                                    Text("Publicar Juego")
                                 }
 
                                 if (mensajeExito.isNotBlank()) {
@@ -361,26 +416,9 @@ fun MainScreen() {
                                 }
                             }
                         }
-
-                        if (listaJuegos.value.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("📋 Tus Juegos Creados (${listaJuegos.value.size})", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                    listaJuegos.value.forEach { juego ->
-                                        Text("• ${juego.nombre} (v${juego.version}) - Cat: ${juego.categoria}")
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
-                2 -> {
+                3 -> {
                     EstadisticasScreen(
                         usuario = usuario,
                         puntuacion = puntuacion,
@@ -407,6 +445,11 @@ fun MainScreen() {
 @Preview(showBackground = true)
 @Composable
 fun MainScreenPreview() {
+    HubDeJuegosDatabaseThemeMock()
+}
+
+@Composable
+fun HubDeJuegosDatabaseThemeMock() {
     HubDeJuegosTheme {
         MainScreen()
     }

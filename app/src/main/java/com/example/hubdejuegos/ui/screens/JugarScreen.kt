@@ -12,6 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -23,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,7 +35,9 @@ import com.example.hubdejuegos.model.JuegoUiItem
 @Composable
 fun JugarScreen(
     juegos: List<JuegoUiItem>,
-    onJuegoIniciado: (JuegoUiItem) -> Unit
+    favoritosIds: Set<Int>,
+    onJuegoIniciado: (JuegoUiItem) -> Unit,
+    onToggleFavorito: (JuegoUiItem) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("Todos") }
@@ -155,7 +160,7 @@ fun JugarScreen(
                             "Prueba cambiando el término de búsqueda o la categoría seleccionada.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -171,10 +176,10 @@ fun JugarScreen(
                 items(juegosFiltrados) { item ->
                     JuegoCard(
                         juegoItem = item,
+                        isFavorito = favoritosIds.contains(item.juego.id),
                         onClick = { selectedJuegoDetail = item },
-                        onPlayClick = {
-                            selectedJuegoDetail = item
-                        }
+                        onPlayClick = { selectedJuegoDetail = item },
+                        onToggleFavorito = { onToggleFavorito(item) }
                     )
                 }
             }
@@ -233,92 +238,12 @@ fun JugarScreen(
 }
 
 @Composable
-fun HeroGameBanner(
-    juego: JuegoUiItem,
-    onPlayClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onPlayClick() },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.secondaryContainer
-                        )
-                    ),
-                    shape = RoundedCornerShape(20.dp)
-                )
-                .padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(juego.icono, fontSize = 40.sp)
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "🔥 DESTACADO",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = juego.juego.nombre,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = "Por @${juego.autor} • ${juego.juego.categoria}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    )
-                }
-
-                Button(
-                    onClick = onPlayClick,
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Jugar")
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun JuegoCard(
     juegoItem: JuegoUiItem,
+    isFavorito: Boolean,
     onClick: () -> Unit,
-    onPlayClick: () -> Unit
+    onPlayClick: () -> Unit,
+    onToggleFavorito: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -346,6 +271,21 @@ fun JuegoCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(juegoItem.icono, fontSize = 44.sp)
+
+                // Botón de Corazón (Favorito)
+                IconButton(
+                    onClick = onToggleFavorito,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFavorito) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Favorito",
+                        tint = if (isFavorito) Color.Red else Color.White
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -404,6 +344,81 @@ fun JuegoCard(
                 Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Jugar", fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun HeroGameBanner(
+    juego: JuegoUiItem,
+    onPlayClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onPlayClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.secondaryContainer
+                        )
+                    )
+                )
+                .padding(20.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "⭐ DESTACADO",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = juego.juego.nombre,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = juego.juego.descripcion,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = onPlayClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Jugar Ahora")
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(juego.icono, fontSize = 64.sp)
             }
         }
     }
