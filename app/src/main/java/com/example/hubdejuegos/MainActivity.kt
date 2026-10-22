@@ -19,8 +19,10 @@ import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,7 +41,9 @@ import com.example.hubdejuegos.data.JuegoDao
 import com.example.hubdejuegos.data.JuegoEntity
 import com.example.hubdejuegos.ui.screens.EstadisticasScreen
 import com.example.hubdejuegos.ui.screens.FavoritosScreen
+import com.example.hubdejuegos.ui.screens.GiphyScreen
 import com.example.hubdejuegos.ui.screens.JugarScreen
+import com.example.hubdejuegos.ui.screens.TriviaScreen
 import com.example.hubdejuegos.ui.theme.HubDeJuegosTheme
 
 class MainActivity : ComponentActivity() {
@@ -57,7 +61,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Jugar, 1: Favoritos, 2: Crear, 3: Estadisticas
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Jugar, 1: Favoritos, 2: Trivia, 3: GIFs, 4: Crear, 5: Estadísticas
 
     val context = LocalContext.current
     val juegoDao = remember { JuegoDao(context) }
@@ -177,7 +181,9 @@ fun MainScreen() {
                                 text = when (selectedTab) {
                                     0 -> "Catálogo de Juegos"
                                     1 -> "Mis Favoritos"
-                                    2 -> "Creador de Juegos"
+                                    2 -> "Trivia de Videojuegos"
+                                    3 -> "Explorador de GIFs"
+                                    4 -> "Creador de Juegos"
                                     else -> "Perfil y Estadísticas"
                                 },
                                 fontSize = 11.sp,
@@ -230,16 +236,28 @@ fun MainScreen() {
                     onClick = { selectedTab = 1 }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.AddCircle, contentDescription = "Crear") },
-                    label = { Text("Crear") },
+                    icon = { Icon(Icons.Default.Star, contentDescription = "Trivia") },
+                    label = { Text("Trivia") },
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Estadísticas") },
-                    label = { Text("Estadísticas") },
+                    icon = { Icon(Icons.Default.Image, contentDescription = "GIFs") },
+                    label = { Text("GIFs") },
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.AddCircle, contentDescription = "Crear") },
+                    label = { Text("Crear") },
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Estadísticas") },
+                    label = { Text("Estadísticas") },
+                    selected = selectedTab == 5,
+                    onClick = { selectedTab = 5 }
                 )
             }
         }
@@ -285,6 +303,17 @@ fun MainScreen() {
                     )
                 }
                 2 -> {
+                    TriviaScreen(
+                        onCorrectAnswer = { pts ->
+                            puntuacion += pts
+                            if (puntuacion >= nivel * 100) nivel++
+                        }
+                    )
+                }
+                3 -> {
+                    GiphyScreen()
+                }
+                4 -> {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -418,7 +447,7 @@ fun MainScreen() {
                         }
                     }
                 }
-                3 -> {
+                5 -> {
                     EstadisticasScreen(
                         usuario = usuario,
                         puntuacion = puntuacion,
@@ -445,11 +474,6 @@ fun MainScreen() {
 @Preview(showBackground = true)
 @Composable
 fun MainScreenPreview() {
-    HubDeJuegosDatabaseThemeMock()
-}
-
-@Composable
-fun HubDeJuegosDatabaseThemeMock() {
     HubDeJuegosTheme {
         MainScreen()
     }
