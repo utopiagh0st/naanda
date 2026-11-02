@@ -10,6 +10,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import com.example.hubdejuegos.model.Usuario
 import com.example.hubdejuegos.model.Rol
+import java.time.LocalDateTime
 
 class JuegoDao(context: Context) {
     companion object {
@@ -212,6 +213,82 @@ class JuegoDao(context: Context) {
             Log.e("JuegoDao", "Error deleting favorite from cloud", e)
             throw e
         }
+    }
+
+    fun obtenerJuegosComunidad(): List<Pair<JuegoEntity, String>> = runBlocking(Dispatchers.IO) {
+        val lista = mutableListOf<Pair<JuegoEntity, String>>()
+        try {
+            val url = URL("$BASE_URL?apikey=$API_KEY")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            setupConnection(connection)
+
+            val jsonBody = JSONObject().apply {
+                put("action", "get_comunidad_juegos")
+            }
+
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val responseString = connection.inputStream.bufferedReader().use { it.readText() }
+                val rows = parseRowsFromJson(responseString)
+                for (i in 0 until rows.length()) {
+                    val row = rows.optJSONObject(i) ?: continue
+                    val id = row.optInt("id", i + 500)
+                    val nombre = row.optString("nombre", "")
+                    val descripcion = row.optString("descripcion", "")
+                    val categoria = row.optString("categoria", "")
+                    val version = row.optString("version", "1.0.0")
+                    val imagenPortada = row.optString("imagenPortada", row.optString("imagenportada", ""))
+                    val autor = row.optString("autorNombre", row.optString("autornombre", "Comunidad"))
+
+                    val entity = JuegoEntity(id = id, juegoId = id + 1000, nombre = nombre, descripcion = descripcion, categoria = categoria, version = version, imagenPortada = imagenPortada)
+                    lista.add(Pair(entity, autor))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("JuegoDao", "Error fetching community games", e)
+        }
+        return@runBlocking lista
+    }
+
+    fun publicarJuegoComunidad(usuarioId: Int, juego: JuegoEntity): Long = runBlocking(Dispatchers.IO) {
+        try {
+            val url = URL("$BASE_URL?apikey=$API_KEY")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            setupConnection(connection)
+
+            val jsonBody = JSONObject().apply {
+                put("action", "insert_comunidad_juego")
+                put("usuarioId", usuarioId)
+                put("nombre", juego.nombre)
+                put("descripcion", juego.descripcion)
+                put("categoria", juego.categoria)
+                put("version", juego.version)
+                put("imagenPortada", juego.imagenPortada)
+                put("fechaPublicacion", LocalDateTime.now().toString())
+            }
+
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                return@runBlocking 1L
+            } else {
+                val errorString = try { connection.errorStream?.bufferedReader()?.use { it.readText() } } catch(_: Exception) { "" }
+                throw Exception("HTTP $responseCode: $errorString")
+            }
+        } catch (e: Exception) {
+            Log.e("JuegoDao", "Error publishing community game", e)
+            throw e
+        }
+        return@runBlocking -1L
     }
 
     fun esFavorito(usuarioId: Int, juegoId: Int): Boolean {

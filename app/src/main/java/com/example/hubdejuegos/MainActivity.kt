@@ -89,19 +89,22 @@ fun MainScreen(
     val juegoDao = remember { JuegoDao(context) }
     val scope = rememberCoroutineScope()
     var favoritosDb by remember { mutableStateOf<List<JuegoEntity>>(emptyList()) }
+    var comunidadGames by remember { mutableStateOf<List<Pair<JuegoEntity, String>>>(emptyList()) }
     var cloudError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(currentUser.id) {
         scope.launch(Dispatchers.IO) {
             try {
-                val loaded = juegoDao.obtenerFavoritos(currentUser.id)
+                val loadedFavs = juegoDao.obtenerFavoritos(currentUser.id)
+                val loadedComunidad = juegoDao.obtenerJuegosComunidad()
                 withContext(Dispatchers.Main) {
-                    favoritosDb = loaded
+                    favoritosDb = loadedFavs
+                    comunidadGames = loadedComunidad
                     cloudError = null
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    cloudError = "Error al cargar favoritos: ${e.localizedMessage}"
+                    cloudError = "Error al cargar datos de la nube: ${e.localizedMessage}"
                 }
             }
         }
@@ -117,8 +120,8 @@ fun MainScreen(
     // Lista de juegos creados por el usuario
     val listaJuegos = remember { mutableStateOf(mutableListOf<Juego>()) }
     
-    // Juegos iniciales de ejemplo + los creados por el usuario
-    val juegosUiList = remember(listaJuegos.value) {
+    // Juegos iniciales de ejemplo + los creados por la comunidad en la nube
+    val juegosUiList = remember(listaJuegos.value, comunidadGames) {
         val baseJuegos = listOf(
             JuegoUiItem(
                 juego = Juego(1, "Super Runner", "Corre y salva el mundo en este juego de plataforma frenético.", "Acción", "1.2.0"),
@@ -142,7 +145,15 @@ fun MainScreen(
                 partidasJugadas = 2100
             )
         )
-        // Mapear los juegos creados por el usuario a JuegoUiItem
+        val comItems = comunidadGames.map { (entity, autorNombre) ->
+            JuegoUiItem(
+                juego = entity.toJuego(),
+                icono = "🕹️",
+                autor = autorNombre,
+                calificacion = 5.0f,
+                partidasJugadas = 1
+            )
+        }
         val userJuegos = listaJuegos.value.map { j ->
             JuegoUiItem(
                 juego = j,
@@ -152,7 +163,7 @@ fun MainScreen(
                 partidasJugadas = 1
             )
         }
-        userJuegos + baseJuegos
+        comItems + userJuegos + baseJuegos
     }
 
     val favoritosUiItems = remember(favoritosDb, juegosUiList) {
@@ -493,35 +504,46 @@ fun MainScreen(
                                     Button(
                                         onClick = {
                                             if (nombreJuego.isNotBlank()) {
-                                                val nuevoJuego = Juego(
-                                                    id = listaJuegos.value.size + 100,
-                                                    nombre = nombreJuego,
-                                                    descripcion = descripcionJuego,
-                                                    categoria = categoriaJuego,
-                                                    version = versionJuego,
-                                                    imagenPortada = imagenPortada
-                                                )
-                                                val mutableList = listaJuegos.value.toMutableList()
-                                                mutableList.add(0, nuevoJuego)
-                                                listaJuegos.value = mutableList
+                                                scope.launch(Dispatchers.IO) {
+                                                    try {
+                                                        val nuevoJuego = Juego(
+                                                            id = 0,
+                                                            nombre = nombreJuego,
+                                                            descripcion = descripcionJuego,
+                                                            categoria = categoriaJuego,
+                                                            version = versionJuego,
+                                                            imagenPortada = imagenPortada
+                                                        )
+                                                        val entity = JuegoEntity.fromJuego(nuevoJuego)
+                                                        juegoDao.publicarJuegoComunidad(currentUser.id, entity)
+                                                        val updatedComunidad = juegoDao.obtenerJuegosComunidad()
+                                                        withContext(Dispatchers.Main) {
+                                                            comunidadGames = updatedComunidad
+                                                            mensajeExito = "¡Juego '${nuevoJuego.nombre}' publicado en la nube para la comunidad!"
+                                                            puntuacion += 50 // Recompensa por crear un juego
+                                                            if (puntuacion >= nivel * 100) nivel++
 
-                                                mensajeExito = "¡Juego '${nuevoJuego.nombre}' publicado con éxito!"
-                                                puntuacion += 50 // Recompensa por crear un juego
-                                                if (puntuacion >= nivel * 100) nivel++
-
-                                                // Reset form
-                                                nombreJuego = ""
-                                                descripcionJuego = ""
-                                                categoriaJuego = "Acción"
-                                                versionJuego = "1.0.0"
-                                                imagenPortada = ""
+                                                            // Reset form
+                                                            nombreJuego = ""
+                                                            descripcionJuego = ""
+                                                            categoriaJuego = "Acción"
+                                                            versionJuego = "1.0.0"
+                                                            imagenPortada = ""
+                                                            cloudError = null
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        withContext(Dispatchers.Main) {
+                                                            cloudError = "Error al publicar juego: ${e.localizedMessage}"
+                                                        }
+                                                    }
+                                                }
                                             } else {
                                                 mensajeExito = "Por favor, ingresa al menos el nombre del juego."
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Text("Publicar Juego")
+                                        Text("Publicar en la Nube")
                                     }
 
                                     if (mensajeExito.isNotBlank()) {
