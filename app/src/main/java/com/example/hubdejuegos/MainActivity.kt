@@ -44,7 +44,6 @@ import com.example.hubdejuegos.data.JuegoDao
 import com.example.hubdejuegos.data.JuegoEntity
 import com.example.hubdejuegos.ui.screens.EstadisticasScreen
 import com.example.hubdejuegos.ui.screens.FavoritosScreen
-import com.example.hubdejuegos.ui.screens.GiphyScreen
 import com.example.hubdejuegos.ui.screens.JugarScreen
 import com.example.hubdejuegos.ui.screens.LoginScreen
 import com.example.hubdejuegos.ui.screens.TriviaScreen
@@ -83,7 +82,7 @@ fun MainScreen(
     currentUser: Usuario,
     onLogout: () -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Jugar, 1: Favoritos, 2: Trivia, 3: GIFs, 4: Crear, 5: Estadísticas
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Jugar, 1: Favoritos, 2: Trivia, 3: Crear, 4: Estadísticas
 
     val context = LocalContext.current
     val juegoDao = remember { JuegoDao(context) }
@@ -117,11 +116,8 @@ fun MainScreen(
     var tiempoJuego by remember { mutableLongStateOf(120L) }
     var isPremium by remember { mutableStateOf(false) }
 
-    // Lista de juegos creados por el usuario
-    val listaJuegos = remember { mutableStateOf(mutableListOf<Juego>()) }
-    
     // Juegos iniciales de ejemplo + los creados por la comunidad en la nube
-    val juegosUiList = remember(listaJuegos.value, comunidadGames) {
+    val juegosUiList = remember(comunidadGames) {
         val baseJuegos = listOf(
             JuegoUiItem(
                 juego = Juego(1, "Super Runner", "Corre y salva el mundo en este juego de plataforma frenético.", "Acción", "1.2.0"),
@@ -154,16 +150,7 @@ fun MainScreen(
                 partidasJugadas = 1
             )
         }
-        val userJuegos = listaJuegos.value.map { j ->
-            JuegoUiItem(
-                juego = j,
-                icono = "🕹️",
-                autor = currentUser.nombre,
-                calificacion = 5.0f,
-                partidasJugadas = 1
-            )
-        }
-        comItems + userJuegos + baseJuegos
+        comItems + baseJuegos
     }
 
     val favoritosUiItems = remember(favoritosDb, juegosUiList) {
@@ -223,8 +210,7 @@ fun MainScreen(
                                     0 -> "Catálogo de Juegos"
                                     1 -> "Mis Favoritos"
                                     2 -> "Trivia de Videojuegos"
-                                    3 -> "Explorador de GIFs"
-                                    4 -> "Creador de Juegos"
+                                    3 -> "Creador de Juegos"
                                     else -> "Perfil y Estadísticas"
                                 },
                                 fontSize = 11.sp,
@@ -287,22 +273,16 @@ fun MainScreen(
                     onClick = { selectedTab = 2 }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Image, contentDescription = "GIFs") },
-                    label = { Text("GIFs") },
+                    icon = { Icon(Icons.Default.AddCircle, contentDescription = "Crear") },
+                    label = { Text("Crear") },
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.AddCircle, contentDescription = "Crear") },
-                    label = { Text("Crear") },
-                    selected = selectedTab == 4,
-                    onClick = { selectedTab = 4 }
-                )
-                NavigationBarItem(
                     icon = { Icon(Icons.Default.BarChart, contentDescription = "Estadísticas") },
                     label = { Text("Estadísticas") },
-                    selected = selectedTab == 5,
-                    onClick = { selectedTab = 5 }
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 }
                 )
             }
         }
@@ -348,6 +328,8 @@ fun MainScreen(
                         JugarScreen(
                             juegos = juegosUiList,
                             favoritosIds = favoritosIds,
+                            juegoDao = juegoDao,
+                            currentUser = currentUser,
                             onJuegoIniciado = { _ ->
                                 puntuacion += 10
                                 tiempoJuego += 15
@@ -411,9 +393,6 @@ fun MainScreen(
                         )
                     }
                     3 -> {
-                        GiphyScreen()
-                    }
-                    4 -> {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -558,7 +537,7 @@ fun MainScreen(
                             }
                         }
                     }
-                5 -> {
+                4 -> {
                     EstadisticasScreen(
                         usuario = currentUser,
                         puntuacion = puntuacion,
@@ -579,10 +558,6 @@ fun MainScreen(
                 }
             }
         }
-      }
     }
 }
-
-fun JuegEntityHelper(item: JuegoUiItem): JuegoEntity {
-    return JuegoEntity.fromJuego(item.juego)
 }

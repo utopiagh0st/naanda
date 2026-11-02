@@ -300,6 +300,80 @@ class JuegoDao(context: Context) {
         }
     }
 
+    fun obtenerResenas(juegoId: Int): List<ResenaEntity> = runBlocking(Dispatchers.IO) {
+        val lista = mutableListOf<ResenaEntity>()
+        try {
+            val url = URL("$BASE_URL?apikey=$API_KEY")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            setupConnection(connection)
+
+            val jsonBody = JSONObject().apply {
+                put("action", "get_resenas")
+                put("juegoId", juegoId)
+            }
+
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val responseString = connection.inputStream.bufferedReader().use { it.readText() }
+                val rows = parseRowsFromJson(responseString)
+                for (i in 0 until rows.length()) {
+                    val row = rows.optJSONObject(i) ?: continue
+                    val id = row.optInt("id", i + 1)
+                    val jId = row.optInt("juegoId", row.optInt("juegoid", juegoId))
+                    val uId = row.optInt("usuarioId", row.optInt("usuarioid", 1))
+                    val autor = row.optString("autorNombre", row.optString("autornombre", "Usuario"))
+                    val puntos = row.optInt("puntuacion", 5)
+                    val com = row.optString("comentario", "")
+                    val gif = row.optString("gifUrl", row.optString("gifurl", ""))
+                    val fecha = row.optString("fecha", "")
+
+                    lista.add(ResenaEntity(id = id, juegoId = jId, usuarioId = uId, autorNombre = autor, puntuacion = puntos, comentario = com, gifUrl = gif, fecha = fecha))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("JuegoDao", "Error fetching reviews", e)
+        }
+        return@runBlocking lista
+    }
+
+    fun insertarResena(resena: ResenaEntity): Long = runBlocking(Dispatchers.IO) {
+        try {
+            val url = URL("$BASE_URL?apikey=$API_KEY")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            setupConnection(connection)
+
+            val jsonBody = JSONObject().apply {
+                put("action", "insert_resena")
+                put("juegoId", resena.juegoId)
+                put("usuarioId", resena.usuarioId)
+                put("autorNombre", resena.autorNombre)
+                put("puntuacion", resena.puntuacion)
+                put("comentario", resena.comentario)
+                put("gifUrl", resena.gifUrl)
+                put("fecha", resena.fecha)
+            }
+
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                return@runBlocking 1L
+            }
+        } catch (e: Exception) {
+            Log.e("JuegoDao", "Error inserting review", e)
+            throw e
+        }
+        return@runBlocking -1L
+    }
+
     private fun parseRowsFromJson(responseString: String): JSONArray {
         val trimmed = responseString.trim()
         if (trimmed.startsWith("[")) {

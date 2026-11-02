@@ -4,11 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
@@ -24,18 +26,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.hubdejuegos.data.JuegoDao
+import com.example.hubdejuegos.data.ResenaEntity
+import com.example.hubdejuegos.data.api.GiphyDto
+import com.example.hubdejuegos.data.api.GiphyRepository
 import com.example.hubdejuegos.model.JuegoUiItem
+import com.example.hubdejuegos.model.Usuario
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JugarScreen(
     juegos: List<JuegoUiItem>,
     favoritosIds: Set<Int>,
+    juegoDao: JuegoDao,
+    currentUser: Usuario,
     onJuegoIniciado: (JuegoUiItem) -> Unit,
     onToggleFavorito: (JuegoUiItem) -> Unit
 ) {
@@ -186,10 +201,12 @@ fun JugarScreen(
         }
     }
 
-    // Modal de Detalle de Juego
+    // Modal de Detalle de Juego con Reseñas y GIFs
     selectedJuegoDetail?.let { item ->
         JuegoDetailDialog(
             juegoItem = item,
+            juegoDao = juegoDao,
+            currentUser = currentUser,
             onDismiss = { selectedJuegoDetail = null },
             onStartGame = {
                 selectedJuegoDetail = null
@@ -426,9 +443,34 @@ fun HeroGameBanner(
 @Composable
 fun JuegoDetailDialog(
     juegoItem: JuegoUiItem,
+    juegoDao: JuegoDao,
+    currentUser: Usuario,
     onDismiss: () -> Unit,
     onStartGame: () -> Unit
 ) {
+    var resenas by remember { mutableStateOf<List<ResenaEntity>>(emptyList()) }
+    var isLoadingResenas by remember { mutableStateOf(true) }
+    var nuevoComentario by remember { mutableStateOf("") }
+    var nuevaPuntuacion by remember { mutableIntStateOf(5) }
+    var selectedGifUrl by remember { mutableStateOf("") }
+    var showGifPicker by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun loadResenas() {
+        scope.launch(Dispatchers.IO) {
+            isLoadingResenas = true
+            val list = juegoDao.obtenerResenas(juegoItem.juego.id)
+            withContext(Dispatchers.Main) {
+                resenas = list
+                isLoadingResenas = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadResenas()
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(24.dp),
@@ -443,48 +485,135 @@ fun JuegoDetailDialog(
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(350.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AssistChip(
-                        onClick = { },
-                        label = { Text(juegoItem.juego.categoria) }
-                    )
-                    AssistChip(
-                        onClick = { },
-                        label = { Text("v${juegoItem.juego.version}") }
-                    )
-                    AssistChip(
-                        onClick = { },
-                        label = { Text("⭐ ${juegoItem.calificacion}") }
-                    )
+                    AssistChip(onClick = { }, label = { Text(juegoItem.juego.categoria) })
+                    AssistChip(onClick = { }, label = { Text("v${juegoItem.juego.version}") })
+                    AssistChip(onClick = { }, label = { Text("⭐ ${juegoItem.calificacion}") })
                 }
 
-                Text(
-                    text = "Descripción:",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = juegoItem.juego.descripcion,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = "Descripción:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(text = juegoItem.juego.descripcion, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 HorizontalDivider()
 
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                    shape = RoundedCornerShape(12.dp),
+                Text(text = "💬 Reseñas y Comunidad (${resenas.size})", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+
+                if (isLoadingResenas) {
+                    Box(modifier = Modifier.fillMaxWidth().height(60.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                } else if (resenas.isEmpty()) {
+                    Text("Aún no hay reseñas. ¡Sé el primero en opinar!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    resenas.forEach { resena ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("@${resena.autorNombre}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("⭐".repeat(resena.puntuacion.coerceIn(1, 5)), fontSize = 10.sp)
+                                }
+                                if (resena.comentario.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(resena.comentario, fontSize = 12.sp)
+                                }
+                                if (resena.gifUrl.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    AsyncImage(
+                                        model = resena.gifUrl,
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                Text(text = "Escribe tu reseña:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Calificación: ", fontSize = 12.sp)
+                    (1..5).forEach { star ->
+                        TextButton(onClick = { nuevaPuntuacion = star }, contentPadding = PaddingValues(2.dp)) {
+                            Text(if (star <= nuevaPuntuacion) "⭐" else "⚪", fontSize = 14.sp)
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = nuevoComentario,
+                    onValueChange = { nuevoComentario = it },
+                    label = { Text("Escribe un comentario...") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (selectedGifUrl.isNotBlank()) {
+                    Box(modifier = Modifier.fillMaxWidth().height(100.dp)) {
+                        AsyncImage(
+                            model = selectedGifUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                        TextButton(
+                            onClick = { selectedGifUrl = "" },
+                            modifier = Modifier.align(Alignment.TopEnd)
+                        ) {
+                            Text("Quitar GIF", color = Color.Red, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = { showGifPicker = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("📌 Información técnica", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        Text("Partidas jugadas: ${juegoItem.partidasJugadas}", fontSize = 12.sp)
-                        Text("Portada: ${juegoItem.juego.imagenPortada.ifBlank { "Sin imagen" }}", fontSize = 12.sp)
-                    }
+                    Text("🎬 Añadir GIF con Giphy")
+                }
+
+                Button(
+                    onClick = {
+                        if (nuevoComentario.isNotBlank() || selectedGifUrl.isNotBlank()) {
+                            scope.launch(Dispatchers.IO) {
+                                val resena = ResenaEntity(
+                                    juegoId = juegoItem.juego.id,
+                                    usuarioId = currentUser.id,
+                                    autorNombre = currentUser.nombre,
+                                    puntuacion = nuevaPuntuacion,
+                                    comentario = nuevoComentario,
+                                    gifUrl = selectedGifUrl,
+                                    fecha = LocalDate.now().toString()
+                                )
+                                juegoDao.insertarResena(resena)
+                                nuevoComentario = ""
+                                selectedGifUrl = ""
+                                loadResenas()
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Publicar Reseña")
                 }
             }
         },
@@ -502,6 +631,97 @@ fun JuegoDetailDialog(
             OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(12.dp)) {
                 Text("Cerrar")
             }
+        }
+    )
+
+    if (showGifPicker) {
+        GiphyPickerDialog(
+            onDismiss = { showGifPicker = false },
+            onGifSelected = { url ->
+                selectedGifUrl = url
+                showGifPicker = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GiphyPickerDialog(
+    onDismiss: () -> Unit,
+    onGifSelected: (String) -> Unit
+) {
+    val repository = remember { GiphyRepository() }
+    val scope = rememberCoroutineScope()
+    var query by remember { mutableStateOf("gaming") }
+    var gifs by remember { mutableStateOf<List<GiphyDto>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    fun search(q: String) {
+        scope.launch(Dispatchers.IO) {
+            isLoading = true
+            val res = repository.searchGifs(q)
+            withContext(Dispatchers.Main) {
+                gifs = res
+                isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        search("gaming")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Buscar GIF en Giphy") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().height(350.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Buscar...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    trailingIcon = {
+                        TextButton(onClick = { search(query) }) { Text("Buscar") }
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (isLoading) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(gifs) { gif ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(100.dp)
+                                    .clickable { onGifSelected(gif.imageUrl) },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                AsyncImage(
+                                    model = gif.imageUrl,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
         }
     )
 }
