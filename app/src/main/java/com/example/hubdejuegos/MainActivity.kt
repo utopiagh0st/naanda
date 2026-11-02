@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Image
@@ -45,10 +46,10 @@ import com.example.hubdejuegos.ui.screens.EstadisticasScreen
 import com.example.hubdejuegos.ui.screens.FavoritosScreen
 import com.example.hubdejuegos.ui.screens.GiphyScreen
 import com.example.hubdejuegos.ui.screens.JugarScreen
+import com.example.hubdejuegos.ui.screens.LoginScreen
 import com.example.hubdejuegos.ui.screens.TriviaScreen
 import com.example.hubdejuegos.ui.theme.HubDeJuegosTheme
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,7 +57,21 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             HubDeJuegosTheme {
-                MainScreen()
+                var currentUser by remember { mutableStateOf<Usuario?>(null) }
+                val context = LocalContext.current
+                val juegoDao = remember { JuegoDao(context) }
+
+                if (currentUser == null) {
+                    LoginScreen(
+                        juegoDao = juegoDao,
+                        onLoginSuccess = { user -> currentUser = user }
+                    )
+                } else {
+                    MainScreen(
+                        currentUser = currentUser!!,
+                        onLogout = { currentUser = null }
+                    )
+                }
             }
         }
     }
@@ -64,7 +79,10 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    currentUser: Usuario,
+    onLogout: () -> Unit
+) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Jugar, 1: Favoritos, 2: Trivia, 3: GIFs, 4: Crear, 5: Estadísticas
 
     val context = LocalContext.current
@@ -73,10 +91,10 @@ fun MainScreen() {
     var favoritosDb by remember { mutableStateOf<List<JuegoEntity>>(emptyList()) }
     var cloudError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(currentUser.id) {
         scope.launch(Dispatchers.IO) {
             try {
-                val loaded = juegoDao.obtenerFavoritos()
+                val loaded = juegoDao.obtenerFavoritos(currentUser.id)
                 withContext(Dispatchers.Main) {
                     favoritosDb = loaded
                     cloudError = null
@@ -90,16 +108,6 @@ fun MainScreen() {
     }
 
     val favoritosIds = remember(favoritosDb) { favoritosDb.map { it.juegoId }.toSet() }
-
-    val usuario = remember {
-        Usuario(
-            id = 1,
-            nombre = "RodoXD0606",
-            email = "rodo@gmail.com",
-            contrasena = "123456",
-            rol = Rol.JUGADOR
-        )
-    }
 
     var puntuacion by remember { mutableIntStateOf(450) }
     var nivel by remember { mutableIntStateOf(5) }
@@ -139,7 +147,7 @@ fun MainScreen() {
             JuegoUiItem(
                 juego = j,
                 icono = "🕹️",
-                autor = usuario.nombre,
+                autor = currentUser.nombre,
                 calificacion = 5.0f,
                 partidasJugadas = 1
             )
@@ -195,9 +203,9 @@ fun MainScreen() {
 
                         Column {
                             Text(
-                                text = "HubJuegos",
+                                text = "HubJuegos (${currentUser.nombre})",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 20.sp
+                                fontSize = 18.sp
                             )
                             Text(
                                 text = when (selectedTab) {
@@ -218,21 +226,25 @@ fun MainScreen() {
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
                         shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.padding(end = 12.dp)
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("⭐", fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("⭐", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(2.dp))
                             Text(
-                                text = "$puntuacion pts",
+                                text = "$puntuacion",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
+                    }
+
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Default.ExitToApp, contentDescription = "Cerrar sesión")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -335,11 +347,11 @@ fun MainScreen() {
                                     try {
                                         val isFav = favoritosIds.contains(item.juego.id)
                                         if (isFav) {
-                                            juegoDao.eliminarFavoritoPorJuegoId(item.juego.id)
+                                            juegoDao.eliminarFavoritoPorJuegoId(currentUser.id, item.juego.id)
                                         } else {
-                                            juegoDao.insertarFavorito(JuegoEntity.fromJuego(item.juego))
+                                            juegoDao.insertarFavorito(currentUser.id, JuegoEntity.fromJuego(item.juego))
                                         }
-                                        val updated = juegoDao.obtenerFavoritos()
+                                        val updated = juegoDao.obtenerFavoritos(currentUser.id)
                                         withContext(Dispatchers.Main) {
                                             favoritosDb = updated
                                             cloudError = null
@@ -364,8 +376,8 @@ fun MainScreen() {
                             onToggleFavorito = { item ->
                                 scope.launch(Dispatchers.IO) {
                                     try {
-                                        juegoDao.eliminarFavoritoPorJuegoId(item.juego.id)
-                                        val updated = juegoDao.obtenerFavoritos()
+                                        juegoDao.eliminarFavoritoPorJuegoId(currentUser.id, item.juego.id)
+                                        val updated = juegoDao.obtenerFavoritos(currentUser.id)
                                         withContext(Dispatchers.Main) {
                                             favoritosDb = updated
                                             cloudError = null
@@ -379,154 +391,154 @@ fun MainScreen() {
                             }
                         )
                     }
-                2 -> {
-                    TriviaScreen(
-                        onCorrectAnswer = { pts ->
-                            puntuacion += pts
-                            if (puntuacion >= nivel * 100) nivel++
-                        }
-                    )
-                }
-                3 -> {
-                    GiphyScreen()
-                }
-                4 -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
-                            .verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                            shape = RoundedCornerShape(20.dp)
+                    2 -> {
+                        TriviaScreen(
+                            onCorrectAnswer = { pts ->
+                                puntuacion += pts
+                                if (puntuacion >= nivel * 100) nivel++
+                            }
+                        )
+                    }
+                    3 -> {
+                        GiphyScreen()
+                    }
+                    4 -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("➕ Crear Nuevo Juego", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("➕ Crear Nuevo Juego", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                                OutlinedTextField(
-                                    value = nombreJuego,
-                                    onValueChange = { nombreJuego = it },
-                                    label = { Text("Nombre del juego") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                                )
+                                    OutlinedTextField(
+                                        value = nombreJuego,
+                                        onValueChange = { nombreJuego = it },
+                                        label = { Text("Nombre del juego") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                    Spacer(modifier = Modifier.height(12.dp))
 
-                                OutlinedTextField(
-                                    value = descripcionJuego,
-                                    onValueChange = { descripcionJuego = it },
-                                    label = { Text("Descripción") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                    OutlinedTextField(
+                                        value = descripcionJuego,
+                                        onValueChange = { descripcionJuego = it },
+                                        label = { Text("Descripción") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                    Spacer(modifier = Modifier.height(12.dp))
 
-                                Text("Categoría:", fontWeight = FontWeight.Medium)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    categoriasDisponibles.forEach { cat ->
-                                        FilterChip(
-                                            selected = categoriaJuego == cat,
-                                            onClick = { categoriaJuego = cat },
-                                            label = { Text(cat) }
+                                    Text("Categoría:", fontWeight = FontWeight.Medium)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        categoriasDisponibles.forEach { cat ->
+                                            FilterChip(
+                                                selected = categoriaJuego == cat,
+                                                onClick = { categoriaJuego = cat },
+                                                label = { Text(cat) }
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    OutlinedTextField(
+                                        value = versionJuego,
+                                        onValueChange = { versionJuego = it },
+                                        label = { Text("Versión (ej. 1.0.0)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    OutlinedTextField(
+                                        value = imagenPortada,
+                                        onValueChange = { imagenPortada = it },
+                                        label = { Text("Imagen de portada (URI o ruta)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            galleryLauncher.launch("image/*")
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Seleccionar Imagen de la Galería")
+                                    }
+
+                                    Spacer(modifier = Modifier.height(20.dp))
+
+                                    Button(
+                                        onClick = {
+                                            if (nombreJuego.isNotBlank()) {
+                                                val nuevoJuego = Juego(
+                                                    id = listaJuegos.value.size + 100,
+                                                    nombre = nombreJuego,
+                                                    descripcion = descripcionJuego,
+                                                    categoria = categoriaJuego,
+                                                    version = versionJuego,
+                                                    imagenPortada = imagenPortada
+                                                )
+                                                val mutableList = listaJuegos.value.toMutableList()
+                                                mutableList.add(0, nuevoJuego)
+                                                listaJuegos.value = mutableList
+
+                                                mensajeExito = "¡Juego '${nuevoJuego.nombre}' publicado con éxito!"
+                                                puntuacion += 50 // Recompensa por crear un juego
+                                                if (puntuacion >= nivel * 100) nivel++
+
+                                                // Reset form
+                                                nombreJuego = ""
+                                                descripcionJuego = ""
+                                                categoriaJuego = "Acción"
+                                                versionJuego = "1.0.0"
+                                                imagenPortada = ""
+                                            } else {
+                                                mensajeExito = "Por favor, ingresa al menos el nombre del juego."
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Publicar Juego")
+                                    }
+
+                                    if (mensajeExito.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = mensajeExito,
+                                            color = if (mensajeExito.startsWith("¡")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                            fontWeight = FontWeight.Medium
                                         )
                                     }
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                OutlinedTextField(
-                                    value = versionJuego,
-                                    onValueChange = { versionJuego = it },
-                                    label = { Text("Versión (ej. 1.0.0)") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                                )
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                OutlinedTextField(
-                                    value = imagenPortada,
-                                    onValueChange = { imagenPortada = it },
-                                    label = { Text("Imagen de portada (URI o ruta)") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                OutlinedButton(
-                                    onClick = {
-                                        galleryLauncher.launch("image/*")
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Seleccionar Imagen de la Galería")
-                                }
-
-                                Spacer(modifier = Modifier.height(20.dp))
-
-                                Button(
-                                    onClick = {
-                                        if (nombreJuego.isNotBlank()) {
-                                            val nuevoJuego = Juego(
-                                                id = listaJuegos.value.size + 100,
-                                                nombre = nombreJuego,
-                                                descripcion = descripcionJuego,
-                                                categoria = categoriaJuego,
-                                                version = versionJuego,
-                                                imagenPortada = imagenPortada
-                                            )
-                                            val mutableList = listaJuegos.value.toMutableList()
-                                            mutableList.add(0, nuevoJuego)
-                                            listaJuegos.value = mutableList
-
-                                            mensajeExito = "¡Juego '${nuevoJuego.nombre}' publicado con éxito!"
-                                            puntuacion += 50 // Recompensa por crear un juego
-                                            if (puntuacion >= nivel * 100) nivel++
-
-                                            // Reset form
-                                            nombreJuego = ""
-                                            descripcionJuego = ""
-                                            categoriaJuego = "Acción"
-                                            versionJuego = "1.0.0"
-                                            imagenPortada = ""
-                                        } else {
-                                            mensajeExito = "Por favor, ingresa al menos el nombre del juego."
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Publicar Juego")
-                                }
-
-                                if (mensajeExito.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = mensajeExito,
-                                        color = if (mensajeExito.startsWith("¡")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Medium
-                                    )
                                 }
                             }
                         }
                     }
-                }
                 5 -> {
                     EstadisticasScreen(
-                        usuario = usuario,
+                        usuario = currentUser,
                         puntuacion = puntuacion,
                         nivel = nivel,
                         tiempoJuego = tiempoJuego,
@@ -549,10 +561,6 @@ fun MainScreen() {
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun MainScreenPreview() {
-    HubDeJuegosTheme {
-        MainScreen()
-    }
+fun JuegEntityHelper(item: JuegoUiItem): JuegoEntity {
+    return JuegoEntity.fromJuego(item.juego)
 }

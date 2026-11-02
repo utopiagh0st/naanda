@@ -8,6 +8,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import com.example.hubdejuegos.model.Usuario
+import com.example.hubdejuegos.model.Rol
 
 class JuegoDao(context: Context) {
     companion object {
@@ -24,7 +26,7 @@ class JuegoDao(context: Context) {
         connection.doOutput = true
     }
 
-    fun insertarFavorito(juego: JuegoEntity): Long = runBlocking(Dispatchers.IO) {
+    fun registrarUsuario(nombre: String, email: String, contrasena: String): Usuario? = runBlocking(Dispatchers.IO) {
         try {
             val url = URL("$BASE_URL?apikey=$API_KEY")
             val connection = url.openConnection() as HttpURLConnection
@@ -32,7 +34,83 @@ class JuegoDao(context: Context) {
             setupConnection(connection)
 
             val jsonBody = JSONObject().apply {
-                put("action", "insert")
+                put("action", "register")
+                put("nombre", nombre)
+                put("email", email)
+                put("contrasena", contrasena)
+            }
+
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val responseString = connection.inputStream.bufferedReader().use { it.readText() }
+                val jsonObj = JSONObject(responseString)
+                val dataObj = jsonObj.optJSONObject("data") ?: jsonObj.optJSONObject("result")
+                val success = dataObj?.optBoolean("success") ?: false
+                if (success) {
+                    val userObj = dataObj?.optJSONObject("user")
+                    val id = userObj?.optInt("id") ?: 1
+                    val name = userObj?.optString("nombre") ?: nombre
+                    val mail = userObj?.optString("email") ?: email
+                    return@runBlocking Usuario(id = id, nombre = name, email = mail, contrasena = "", rol = Rol.JUGADOR)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("JuegoDao", "Error registering user", e)
+        }
+        return@runBlocking null
+    }
+
+    fun loginUsuario(email: String, contrasena: String): Usuario? = runBlocking(Dispatchers.IO) {
+        try {
+            val url = URL("$BASE_URL?apikey=$API_KEY")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            setupConnection(connection)
+
+            val jsonBody = JSONObject().apply {
+                put("action", "login")
+                put("email", email)
+                put("contrasena", contrasena)
+            }
+
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val responseString = connection.inputStream.bufferedReader().use { it.readText() }
+                val jsonObj = JSONObject(responseString)
+                val dataObj = jsonObj.optJSONObject("data") ?: jsonObj.optJSONObject("result")
+                val success = dataObj?.optBoolean("success") ?: false
+                if (success) {
+                    val userObj = dataObj?.optJSONObject("user")
+                    val id = userObj?.optInt("id") ?: 1
+                    val name = userObj?.optString("nombre") ?: "Usuario"
+                    val mail = userObj?.optString("email") ?: email
+                    return@runBlocking Usuario(id = id, nombre = name, email = mail, contrasena = "", rol = Rol.JUGADOR)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("JuegoDao", "Error logging in", e)
+        }
+        return@runBlocking null
+    }
+
+    fun insertarFavorito(usuarioId: Int, juego: JuegoEntity): Long = runBlocking(Dispatchers.IO) {
+        try {
+            val url = URL("$BASE_URL?apikey=$API_KEY")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            setupConnection(connection)
+
+            val jsonBody = JSONObject().apply {
+                put("action", "insert_favorito")
+                put("usuarioId", usuarioId)
                 put("juegoId", juego.juegoId)
                 put("nombre", juego.nombre)
                 put("descripcion", juego.descripcion)
@@ -58,16 +136,17 @@ class JuegoDao(context: Context) {
         }
     }
 
-    fun obtenerFavoritos(): List<JuegoEntity> = runBlocking(Dispatchers.IO) {
+    fun obtenerFavoritos(usuarioId: Int): List<JuegoEntity> = runBlocking(Dispatchers.IO) {
         val lista = mutableListOf<JuegoEntity>()
         try {
             val url = URL("$BASE_URL?apikey=$API_KEY")
             val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST" // Using POST to always send a valid JSON body
+            connection.requestMethod = "POST"
             setupConnection(connection)
 
             val jsonBody = JSONObject().apply {
-                put("action", "get")
+                put("action", "get_favoritos")
+                put("usuarioId", usuarioId)
             }
 
             connection.outputStream.use { os ->
@@ -105,15 +184,16 @@ class JuegoDao(context: Context) {
         return@runBlocking lista
     }
 
-    fun eliminarFavoritoPorJuegoId(juegoId: Int): Int = runBlocking(Dispatchers.IO) {
+    fun eliminarFavoritoPorJuegoId(usuarioId: Int, juegoId: Int): Int = runBlocking(Dispatchers.IO) {
         try {
             val url = URL("$BASE_URL?apikey=$API_KEY")
             val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST" // Using POST for delete action
+            connection.requestMethod = "POST"
             setupConnection(connection)
 
             val jsonBody = JSONObject().apply {
-                put("action", "delete")
+                put("action", "delete_favorito")
+                put("usuarioId", usuarioId)
                 put("juegoId", juegoId)
             }
 
@@ -134,9 +214,9 @@ class JuegoDao(context: Context) {
         }
     }
 
-    fun esFavorito(juegoId: Int): Boolean {
+    fun esFavorito(usuarioId: Int, juegoId: Int): Boolean {
         return try {
-            val favoritos = obtenerFavoritos()
+            val favoritos = obtenerFavoritos(usuarioId)
             favoritos.any { it.juegoId == juegoId }
         } catch (_: Exception) {
             false
