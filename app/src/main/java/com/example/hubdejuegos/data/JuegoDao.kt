@@ -12,6 +12,13 @@ import com.example.hubdejuegos.model.Usuario
 import com.example.hubdejuegos.model.Rol
 import java.time.LocalDateTime
 
+data class LeaderboardUser(
+    val id: Int,
+    val nombre: String,
+    val puntuacion: Int,
+    val nivel: Int
+)
+
 class JuegoDao(context: Context) {
     companion object {
         private const val API_KEY = "obAA4sjO40MEanvtiCMjr1VQeK2Vxapq3ATw8IXaKAU"
@@ -291,15 +298,6 @@ class JuegoDao(context: Context) {
         return@runBlocking -1L
     }
 
-    fun esFavorito(usuarioId: Int, juegoId: Int): Boolean {
-        return try {
-            val favoritos = obtenerFavoritos(usuarioId)
-            favoritos.any { it.juegoId == juegoId }
-        } catch (_: Exception) {
-            false
-        }
-    }
-
     fun obtenerResenas(juegoId: Int): List<ResenaEntity> = runBlocking(Dispatchers.IO) {
         val lista = mutableListOf<ResenaEntity>()
         try {
@@ -372,6 +370,51 @@ class JuegoDao(context: Context) {
             throw e
         }
         return@runBlocking -1L
+    }
+
+    fun obtenerRanking(): List<LeaderboardUser> = runBlocking(Dispatchers.IO) {
+        val lista = mutableListOf<LeaderboardUser>()
+        try {
+            val url = URL("$BASE_URL?apikey=$API_KEY")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            setupConnection(connection)
+
+            val jsonBody = JSONObject().apply {
+                put("action", "get_leaderboard")
+            }
+
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val responseString = connection.inputStream.bufferedReader().use { it.readText() }
+                val rows = parseRowsFromJson(responseString)
+                for (i in 0 until rows.length()) {
+                    val row = rows.optJSONObject(i) ?: continue
+                    val id = row.optInt("id", i + 1)
+                    val nombre = row.optString("nombre", "Usuario")
+                    val puntuacion = row.optInt("puntuacion", 450)
+                    val nivel = row.optInt("nivel", 5)
+
+                    lista.add(LeaderboardUser(id = id, nombre = nombre, puntuacion = puntuacion, nivel = nivel))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("JuegoDao", "Error fetching leaderboard", e)
+        }
+        return@runBlocking lista
+    }
+
+    fun esFavorito(usuarioId: Int, juegoId: Int): Boolean {
+        return try {
+            val favoritos = obtenerFavoritos(usuarioId)
+            favoritos.any { it.juegoId == juegoId }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun parseRowsFromJson(responseString: String): JSONArray {

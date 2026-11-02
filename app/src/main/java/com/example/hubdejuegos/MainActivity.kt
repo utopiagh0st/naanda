@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,9 +44,11 @@ import androidx.compose.ui.unit.sp
 import com.example.hubdejuegos.model.*
 import com.example.hubdejuegos.data.JuegoDao
 import com.example.hubdejuegos.data.JuegoEntity
+import com.example.hubdejuegos.data.LeaderboardUser
 import com.example.hubdejuegos.ui.screens.EstadisticasScreen
 import com.example.hubdejuegos.ui.screens.FavoritosScreen
 import com.example.hubdejuegos.ui.screens.JugarScreen
+import com.example.hubdejuegos.ui.screens.LeaderboardDialog
 import com.example.hubdejuegos.ui.screens.LoginScreen
 import com.example.hubdejuegos.ui.screens.TriviaScreen
 import com.example.hubdejuegos.ui.theme.HubDeJuegosTheme
@@ -90,6 +94,7 @@ fun MainScreen(
     var favoritosDb by remember { mutableStateOf<List<JuegoEntity>>(emptyList()) }
     var comunidadGames by remember { mutableStateOf<List<Pair<JuegoEntity, String>>>(emptyList()) }
     var cloudError by remember { mutableStateOf<String?>(null) }
+    var showLeaderboard by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentUser.id) {
         scope.launch(Dispatchers.IO) {
@@ -220,6 +225,10 @@ fun MainScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showLeaderboard = true }) {
+                        Text("🏆", fontSize = 20.sp)
+                    }
+
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
                         shape = RoundedCornerShape(16.dp),
@@ -264,7 +273,7 @@ fun MainScreen(
                     icon = { Icon(Icons.Default.Favorite, contentDescription = "Favoritos") },
                     label = { Text("Favoritos") },
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 }
+                    onClick = { selectedTab == 1 }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Star, contentDescription = "Trivia") },
@@ -558,6 +567,13 @@ fun MainScreen(
                 }
             }
         }
+    }
+
+    if (showLeaderboard) {
+         LeaderboardDialog(
+            juegoDao = juegoDao,
+            onDismiss = { showLeaderboard = false }
+        )
     }
 }
 }
