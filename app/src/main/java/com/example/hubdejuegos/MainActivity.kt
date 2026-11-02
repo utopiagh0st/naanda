@@ -27,6 +27,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -45,6 +47,8 @@ import com.example.hubdejuegos.ui.screens.GiphyScreen
 import com.example.hubdejuegos.ui.screens.JugarScreen
 import com.example.hubdejuegos.ui.screens.TriviaScreen
 import com.example.hubdejuegos.ui.theme.HubDeJuegosTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,7 +69,25 @@ fun MainScreen() {
 
     val context = LocalContext.current
     val juegoDao = remember { JuegoDao(context) }
-    var favoritosDb by remember { mutableStateOf(juegoDao.obtenerFavoritos()) }
+    val scope = rememberCoroutineScope()
+    var favoritosDb by remember { mutableStateOf<List<JuegoEntity>>(emptyList()) }
+    var cloudError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val loaded = juegoDao.obtenerFavoritos()
+                withContext(Dispatchers.Main) {
+                    favoritosDb = loaded
+                    cloudError = null
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    cloudError = "Error al cargar favoritos: ${e.localizedMessage}"
+                }
+            }
+        }
+    }
 
     val favoritosIds = remember(favoritosDb) { favoritosDb.map { it.juegoId }.toSet() }
 
@@ -262,46 +284,101 @@ fun MainScreen() {
             }
         }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            when (selectedTab) {
-                0 -> {
-                    JugarScreen(
-                        juegos = juegosUiList,
-                        favoritosIds = favoritosIds,
-                        onJuegoIniciado = { _ ->
-                            puntuacion += 10
-                            tiempoJuego += 15
-                            if (puntuacion >= nivel * 100) nivel++
-                        },
-                        onToggleFavorito = { item ->
-                            val isFav = favoritosIds.contains(item.juego.id)
-                            if (isFav) {
-                                juegoDao.eliminarFavoritoPorJuegoId(item.juego.id)
-                            } else {
-                                juegoDao.insertarFavorito(JuegoEntity.fromJuego(item.juego))
+            if (cloudError != null) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "⚠️ $cloudError",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { cloudError = null }) {
+                            Text("Cerrar", color = MaterialTheme.colorScheme.onErrorContainer)
+                        }
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                when (selectedTab) {
+                    0 -> {
+                        JugarScreen(
+                            juegos = juegosUiList,
+                            favoritosIds = favoritosIds,
+                            onJuegoIniciado = { _ ->
+                                puntuacion += 10
+                                tiempoJuego += 15
+                                if (puntuacion >= nivel * 100) nivel++
+                            },
+                            onToggleFavorito = { item ->
+                                scope.launch(Dispatchers.IO) {
+                                    try {
+                                        val isFav = favoritosIds.contains(item.juego.id)
+                                        if (isFav) {
+                                            juegoDao.eliminarFavoritoPorJuegoId(item.juego.id)
+                                        } else {
+                                            juegoDao.insertarFavorito(JuegoEntity.fromJuego(item.juego))
+                                        }
+                                        val updated = juegoDao.obtenerFavoritos()
+                                        withContext(Dispatchers.Main) {
+                                            favoritosDb = updated
+                                            cloudError = null
+                                        }
+                                    } catch (e: Exception) {
+                                        withContext(Dispatchers.Main) {
+                                            cloudError = "Error al actualizar favorito: ${e.localizedMessage}"
+                                        }
+                                    }
+                                }
                             }
-                            favoritosDb = juegoDao.obtenerFavoritos()
-                        }
-                    )
-                }
-                1 -> {
-                    FavoritosScreen(
-                        favoritos = favoritosUiItems,
-                        onJuegoIniciado = { _ ->
-                            puntuacion += 10
-                            tiempoJuego += 15
-                            if (puntuacion >= nivel * 100) nivel++
-                        },
-                        onToggleFavorito = { item ->
-                            juegoDao.eliminarFavoritoPorJuegoId(item.juego.id)
-                            favoritosDb = juegoDao.obtenerFavoritos()
-                        }
-                    )
-                }
+                        )
+                    }
+                    1 -> {
+                        FavoritosScreen(
+                            favoritos = favoritosUiItems,
+                            onJuegoIniciado = { _ ->
+                                puntuacion += 10
+                                tiempoJuego += 15
+                                if (puntuacion >= nivel * 100) nivel++
+                            },
+                            onToggleFavorito = { item ->
+                                scope.launch(Dispatchers.IO) {
+                                    try {
+                                        juegoDao.eliminarFavoritoPorJuegoId(item.juego.id)
+                                        val updated = juegoDao.obtenerFavoritos()
+                                        withContext(Dispatchers.Main) {
+                                            favoritosDb = updated
+                                            cloudError = null
+                                        }
+                                    } catch (e: Exception) {
+                                        withContext(Dispatchers.Main) {
+                                            cloudError = "Error al eliminar favorito: ${e.localizedMessage}"
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                    }
                 2 -> {
                     TriviaScreen(
                         onCorrectAnswer = { pts ->
@@ -468,6 +545,7 @@ fun MainScreen() {
                 }
             }
         }
+      }
     }
 }
 

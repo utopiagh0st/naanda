@@ -246,9 +246,7 @@ fun JuegoCard(
     onToggleFavorito: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -260,6 +258,7 @@ fun JuegoCard(
                     .fillMaxWidth()
                     .height(100.dp)
                     .clip(RoundedCornerShape(12.dp))
+                    .clickable { onClick() }
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
