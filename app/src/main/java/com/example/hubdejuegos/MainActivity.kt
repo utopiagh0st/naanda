@@ -1,6 +1,8 @@
 package com.example.hubdejuegos
 
+import android.Manifest
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -95,6 +97,16 @@ fun MainScreen(
     var comunidadGames by remember { mutableStateOf<List<Pair<JuegoEntity, String>>>(emptyList()) }
     var cloudError by remember { mutableStateOf<String?>(null) }
     var showLeaderboard by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     LaunchedEffect(currentUser.id) {
         scope.launch(Dispatchers.IO) {

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "506943475577",
+    "project_id": "hub-de-juegos",
+    "storage_bucket": "hub-de-juegos.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:506943475577:android:07021f34c111894bbb69a8",
+        "android_client_info": {
+          "package_name": "com.example.hubdejuegos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDDSCre3yt8Q56D6wTkeTOD2O2AuN_Z-FQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
