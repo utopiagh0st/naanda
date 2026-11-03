@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
@@ -82,13 +84,40 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Composable
+fun BottomNavButton(
+    icon: String,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+
+    Column(
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(icon, fontSize = 22.sp)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = tint,
+            fontWeight = fontWeight
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     currentUser: Usuario,
     onLogout: () -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Jugar, 1: Favoritos, 2: Trivia, 3: Crear, 4: Estadísticas
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) } // 0: Jugar, 1: Favoritos, 2: Trivia, 3: Crear, 4: Estadísticas
 
     val context = LocalContext.current
     val juegoDao = remember { JuegoDao(context) }
@@ -272,39 +301,48 @@ fun MainScreen(
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 8.dp
             ) {
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.SportsEsports, contentDescription = "Jugar") },
-                    label = { Text("Jugar") },
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Favorite, contentDescription = "Favoritos") },
-                    label = { Text("Favoritos") },
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab == 1 }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Trivia") },
-                    label = { Text("Trivia") },
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.AddCircle, contentDescription = "Crear") },
-                    label = { Text("Crear") },
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Estadísticas") },
-                    label = { Text("Estadísticas") },
-                    selected = selectedTab == 4,
-                    onClick = { selectedTab = 4 }
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BottomNavButton(
+                        icon = "🎮",
+                        label = "Jugar",
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 }
+                    )
+                    BottomNavButton(
+                        icon = "❤️",
+                        label = "Favoritos",
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 }
+                    )
+                    BottomNavButton(
+                        icon = "⭐",
+                        label = "Trivia",
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 }
+                    )
+                    BottomNavButton(
+                        icon = "➕",
+                        label = "Crear",
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 }
+                    )
+                    BottomNavButton(
+                        icon = "📊",
+                        label = "Estadísticas",
+                        selected = selectedTab == 4,
+                        onClick = { selectedTab = 4 }
+                    )
+                }
             }
         }
     ) { innerPadding ->

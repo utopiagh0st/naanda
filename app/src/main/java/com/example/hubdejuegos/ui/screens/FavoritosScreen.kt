@@ -30,7 +30,7 @@ fun FavoritosScreen(
         if (favoritos.isEmpty()) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
@@ -47,7 +47,7 @@ fun FavoritosScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .weight(1f)
             ) {
                 items(favoritos) { item ->
